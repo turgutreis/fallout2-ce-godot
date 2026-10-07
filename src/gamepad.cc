@@ -8,6 +8,8 @@
 #include "input.h"
 #include "kb.h"
 #include "mouse.h"
+#include "object.h"
+#include "tile.h"
 
 namespace fallout {
 
@@ -24,6 +26,11 @@ static bool gButtonALeftClick = false;
 static bool gButtonXRightClick = false;
 static bool gTriggerRLeftClick = false;
 static bool gTriggerLRightClick = false;
+
+static bool gButtonBackHeld = false;
+static bool gButtonBackUsedCombo = false;
+
+static bool gLootScannerEnabled = false;
 
 static bool gDpadUpHeld = false;
 static bool gDpadDownHeld = false;
@@ -81,6 +88,30 @@ void gamepadFree()
     SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
 }
 
+static void updateLootScanner(bool enable)
+{
+    if (gDude == nullptr) {
+        return;
+    }
+
+    int elevation = gDude->elevation;
+    for (Object* obj = objectFindFirstAtElevation(elevation); obj != nullptr; obj = objectFindNextAtElevation()) {
+        int fidType = FID_TYPE(obj->fid);
+        if (fidType == OBJ_TYPE_ITEM || (fidType == OBJ_TYPE_SCENERY && _obj_action_can_use(obj))) {
+            Rect rect;
+            if (enable) {
+                if (objectSetOutline(obj, OUTLINE_TYPE_ITEM, &rect) == 0) {
+                    tileWindowRefreshRect(&rect, elevation);
+                }
+            } else {
+                if (objectClearOutline(obj, &rect) == 0) {
+                    tileWindowRefreshRect(&rect, elevation);
+                }
+            }
+        }
+    }
+}
+
 void gamepadHandleEvent(const SDL_Event* event)
 {
     if (event == nullptr) {
@@ -114,20 +145,37 @@ void gamepadHandleEvent(const SDL_Event* event)
             enqueueInputEvent(KEY_ESCAPE); // Options / Menu / Cancel
             break;
         case SDL_CONTROLLER_BUTTON_BACK:
-            enqueueInputEvent(KEY_LOWERCASE_C); // Character Sheet
+            gButtonBackHeld = true;
+            gButtonBackUsedCombo = false;
             break;
         case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-            enqueueInputEvent(KEY_LOWERCASE_B); // Switch active weapon/item
+            if (gButtonBackHeld) {
+                gButtonBackUsedCombo = true;
+                enqueueInputEvent(KEY_F6); // Quick Save (Select + RB)
+            } else {
+                enqueueInputEvent(KEY_LOWERCASE_B); // Switch active weapon/item
+            }
             break;
         case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-            if (isInCombat()) {
-                enqueueInputEvent(KEY_RETURN); // End Combat Turn
+            if (gButtonBackHeld) {
+                gButtonBackUsedCombo = true;
+                enqueueInputEvent(KEY_F7); // Quick Load (Select + LB)
             } else {
-                enqueueInputEvent(KEY_LOWERCASE_A); // Enter Combat Mode
+                if (isInCombat()) {
+                    enqueueInputEvent(KEY_RETURN); // End Combat Turn
+                } else {
+                    enqueueInputEvent(KEY_LOWERCASE_A); // Enter Combat Mode
+                }
             }
             break;
         case SDL_CONTROLLER_BUTTON_LEFTSTICK:
-            enqueueInputEvent(KEY_1); // Toggle Sneak
+            if (gButtonBackHeld) {
+                gButtonBackUsedCombo = true;
+                enqueueInputEvent(KEY_1); // Toggle Sneak (Select + L3)
+            } else {
+                gLootScannerEnabled = !gLootScannerEnabled;
+                updateLootScanner(gLootScannerEnabled); // L3 = Loot Scanner Toggle
+            }
             break;
         case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
             enqueueInputEvent(KEY_LOWERCASE_M); // Cycle Mouse Cursor Mode
@@ -160,6 +208,12 @@ void gamepadHandleEvent(const SDL_Event* event)
             break;
         case SDL_CONTROLLER_BUTTON_X:
             gButtonXRightClick = false;
+            break;
+        case SDL_CONTROLLER_BUTTON_BACK:
+            if (!gButtonBackUsedCombo) {
+                enqueueInputEvent(KEY_LOWERCASE_C); // Character Sheet (tap Select)
+            }
+            gButtonBackHeld = false;
             break;
         case SDL_CONTROLLER_BUTTON_DPAD_UP:
             gDpadUpHeld = false;
@@ -194,6 +248,16 @@ void gamepadGetState(int* out_dx, int* out_dy, int* out_buttons, int* out_wheel_
 
     if (gControllers.empty()) {
         return;
+    }
+
+    // Periodic refresh while loot scanner is active (to highlight newly visible items)
+    if (gLootScannerEnabled) {
+        static unsigned int lastScanTick = 0;
+        unsigned int now = SDL_GetTicks();
+        if (now - lastScanTick > 350) {
+            updateLootScanner(true);
+            lastScanTick = now;
+        }
     }
 
     // Combine button states
