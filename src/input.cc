@@ -218,7 +218,7 @@ void enqueueInputEvent(int a1)
         return;
     }
 
-    if (a1 == KEY_F11) {
+    if (a1 == KEY_F11 || a1 == KEY_CTRL_F || a1 == KEY_ALT_F) {
         cycleCrtFilterMode();
         return;
     }
