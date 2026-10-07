@@ -46,6 +46,17 @@ int screenGetVisibleHeight();
 void handleWindowSizeChanged();
 void renderPresent();
 
+enum UpscaleFilterMode {
+    UPSCALE_FILTER_NEAREST = 0,
+    UPSCALE_FILTER_LINEAR = 1,
+    UPSCALE_FILTER_SCALE2X = 2,
+    UPSCALE_FILTER_COUNT = 3,
+};
+
+void setUpscaleFilterMode(int mode);
+int getUpscaleFilterMode();
+void cycleUpscaleFilterMode();
+
 } // namespace fallout
 
 #endif /* FALLOUT_SVGA_H_ */

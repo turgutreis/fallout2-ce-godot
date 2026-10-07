@@ -28,4 +28,5 @@
    - RB: Waffe in der Hand wechseln ('b')
    - LB: Kampf starten ('a') bzw. Runde beenden (Enter)
    - Start: Pause / Menü / Esc
-   - D-Pad: Inventar & Dialoge scrollen
+   - Select + D-Pad Oben: Bildfilter umschalten (Scharf -> Bilinear -> Scale2x Kantenglättung)
+   - D-Pad: Inventar & Dialoge scrollen (Ctrl+F / Alt+F auf Tastatur)

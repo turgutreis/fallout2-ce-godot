@@ -2,11 +2,14 @@
 
 #include <limits.h>
 #include <string.h>
+#include <vector>
 
 #include <SDL.h>
 
 #include "config.h"
+#include "display_monitor.h"
 #include "draw.h"
+#include "game_sound.h"
 #include "interface.h"
 #include "memory.h"
 #include "mouse.h"
@@ -138,6 +141,11 @@ int _GNW95_init_mode_ex(int width, int height, int bpp)
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_WIDTH", &gInterfaceBarWidth);
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_SIDE_ART", &gInterfaceSidePanelsImageId);
             configGetBool(&resolutionConfig, "IFACE", "IFACE_BAR_SIDES_ORI", &gInterfaceSidePanelsExtendFromScreenEdge);
+
+            int filterVal;
+            if (configGetInt(&resolutionConfig, "MAIN", "UPSCALE_FILTER", &filterVal)) {
+                setUpscaleFilterMode(filterVal);
+            }
         }
         configFree(&resolutionConfig);
     }
@@ -354,6 +362,93 @@ int screenGetVisibleHeight()
     return screenGetHeight() - windowBottomMargin;
 }
 
+static int gUpscaleFilterMode = UPSCALE_FILTER_NEAREST;
+static SDL_Texture* gScale2xTexture = nullptr;
+static std::vector<Uint32> gScale2xBuffer;
+
+static void applyTextureScaleMode()
+{
+    if (gSdlTexture != nullptr) {
+        if (gUpscaleFilterMode == UPSCALE_FILTER_LINEAR) {
+            SDL_SetTextureScaleMode(gSdlTexture, SDL_ScaleModeLinear);
+        } else {
+            SDL_SetTextureScaleMode(gSdlTexture, SDL_ScaleModeNearest);
+        }
+    }
+}
+
+static void scale2x(const Uint32* src, int srcWidth, int srcHeight, int srcPitchPixels,
+                    Uint32* dst, int dstPitchPixels)
+{
+    for (int y = 0; y < srcHeight; ++y) {
+        int yPrev = (y > 0) ? (y - 1) : 0;
+        int yNext = (y < srcHeight - 1) ? (y + 1) : (srcHeight - 1);
+
+        const Uint32* rowP = src + y * srcPitchPixels;
+        const Uint32* rowA = src + yPrev * srcPitchPixels;
+        const Uint32* rowC = src + yNext * srcPitchPixels;
+
+        Uint32* dstRow0 = dst + (y * 2) * dstPitchPixels;
+        Uint32* dstRow1 = dst + (y * 2 + 1) * dstPitchPixels;
+
+        for (int x = 0; x < srcWidth; ++x) {
+            int xPrev = (x > 0) ? (x - 1) : 0;
+            int xNext = (x < srcWidth - 1) ? (x + 1) : (srcWidth - 1);
+
+            Uint32 P = rowP[x];
+            Uint32 A = rowA[x];
+            Uint32 B = rowP[xNext];
+            Uint32 C = rowC[x];
+            Uint32 D = rowP[xPrev];
+
+            // Scale2x rules:
+            // 1 2
+            // 3 4
+            Uint32 E0 = (D == A && C != A && D != B) ? D : P;
+            Uint32 E1 = (A == B && A != C && B != D) ? B : P;
+            Uint32 E2 = (D == C && D != A && C != B) ? D : P;
+            Uint32 E3 = (B == C && A != C && B != D) ? B : P;
+
+            dstRow0[x * 2]     = E0;
+            dstRow0[x * 2 + 1] = E1;
+            dstRow1[x * 2]     = E2;
+            dstRow1[x * 2 + 1] = E3;
+        }
+    }
+}
+
+void setUpscaleFilterMode(int mode)
+{
+    if (mode < 0 || mode >= UPSCALE_FILTER_COUNT) {
+        mode = UPSCALE_FILTER_NEAREST;
+    }
+    gUpscaleFilterMode = mode;
+    applyTextureScaleMode();
+}
+
+int getUpscaleFilterMode()
+{
+    return gUpscaleFilterMode;
+}
+
+void cycleUpscaleFilterMode()
+{
+    int nextMode = (gUpscaleFilterMode + 1) % UPSCALE_FILTER_COUNT;
+    setUpscaleFilterMode(nextMode);
+
+    soundPlayFile("toggle");
+
+    const char* modeNames[UPSCALE_FILTER_COUNT] = {
+        "Knackige Pixel (Original)",
+        "Weichzeichnung (Bilinear)",
+        "Scale2x Kantenglaettung"
+    };
+
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Bildfilter: %s", modeNames[gUpscaleFilterMode]);
+    displayMonitorAddMessage(msg);
+}
+
 static bool createRenderer(int width, int height)
 {
     gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
@@ -380,11 +475,25 @@ static bool createRenderer(int width, int height)
         return false;
     }
 
+    gScale2xTexture = SDL_CreateTexture(gSdlRenderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, width * 2, height * 2);
+    if (gScale2xTexture != nullptr) {
+        SDL_SetTextureScaleMode(gScale2xTexture, SDL_ScaleModeNearest);
+        gScale2xBuffer.resize(width * 2 * height * 2);
+    }
+
+    applyTextureScaleMode();
+
     return true;
 }
 
 static void destroyRenderer()
 {
+    if (gScale2xTexture != nullptr) {
+        SDL_DestroyTexture(gScale2xTexture);
+        gScale2xTexture = nullptr;
+    }
+    gScale2xBuffer.clear();
+
     if (gSdlTextureSurface != nullptr) {
         SDL_FreeSurface(gSdlTextureSurface);
         gSdlTextureSurface = nullptr;
@@ -409,9 +518,22 @@ void handleWindowSizeChanged()
 
 void renderPresent()
 {
-    SDL_UpdateTexture(gSdlTexture, nullptr, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
-    SDL_RenderClear(gSdlRenderer);
-    SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, nullptr);
+    if (gUpscaleFilterMode == UPSCALE_FILTER_SCALE2X && gScale2xTexture != nullptr && gSdlTextureSurface != nullptr) {
+        int w = screenGetWidth();
+        int h = screenGetHeight();
+        scale2x(
+            (const Uint32*)gSdlTextureSurface->pixels,
+            w, h, gSdlTextureSurface->pitch / sizeof(Uint32),
+            gScale2xBuffer.data(), w * 2
+        );
+        SDL_UpdateTexture(gScale2xTexture, nullptr, gScale2xBuffer.data(), w * 2 * sizeof(Uint32));
+        SDL_RenderClear(gSdlRenderer);
+        SDL_RenderCopy(gSdlRenderer, gScale2xTexture, nullptr, nullptr);
+    } else {
+        SDL_UpdateTexture(gSdlTexture, nullptr, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
+        SDL_RenderClear(gSdlRenderer);
+        SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, nullptr);
+    }
     SDL_RenderPresent(gSdlRenderer);
 }
 
