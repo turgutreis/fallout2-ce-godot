@@ -2,6 +2,7 @@
 
 #include "color.h"
 #include "dinput.h"
+#include "gamepad.h"
 #include "input.h"
 #include "kb.h"
 #include "memory.h"
@@ -454,11 +455,21 @@ void _mouse_info()
     x = (int)(x * gMouseSensitivity);
     y = (int)(y * gMouseSensitivity);
 
+    int gp_dx = 0;
+    int gp_dy = 0;
+    int gp_buttons = 0;
+    int gp_wheel_y = 0;
+    gamepadGetState(&gp_dx, &gp_dy, &gp_buttons, &gp_wheel_y);
+
+    x += gp_dx;
+    y += gp_dy;
+    buttons |= gp_buttons;
+
     _mouse_simulate_input(x, y, buttons);
 
     // TODO: Move to `_mouse_simulate_input`.
     gMouseWheelX = mouseData.wheelX;
-    gMouseWheelY = mouseData.wheelY;
+    gMouseWheelY = mouseData.wheelY + gp_wheel_y;
 
     if (gMouseWheelX != 0 || gMouseWheelY != 0) {
         gMouseEvent |= MOUSE_EVENT_WHEEL;

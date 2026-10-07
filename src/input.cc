@@ -7,6 +7,7 @@
 #include "delay.h"
 #include "dinput.h"
 #include "draw.h"
+#include "gamepad.h"
 #include "kb.h"
 #include "memory.h"
 #include "mouse.h"
@@ -113,6 +114,8 @@ int inputInit(int a1)
         return -1;
     }
 
+    gamepadInit();
+
     if (_GNW95_input_init() == -1) {
         return -1;
     }
@@ -137,6 +140,7 @@ int inputInit(int a1)
 void inputExit()
 {
     _GNW95_input_init();
+    gamepadFree();
     mouseFree();
     keyboardFree();
     directInputFree();
@@ -925,6 +929,13 @@ void _GNW95_process_message()
             break;
         case SDL_FINGERUP:
             touch_handle_end(&(e.tfinger));
+            break;
+        case SDL_CONTROLLERDEVICEADDED:
+        case SDL_CONTROLLERDEVICEREMOVED:
+        case SDL_CONTROLLERBUTTONDOWN:
+        case SDL_CONTROLLERBUTTONUP:
+        case SDL_CONTROLLERAXISMOTION:
+            gamepadHandleEvent(&e);
             break;
         case SDL_KEYDOWN:
         case SDL_KEYUP:
