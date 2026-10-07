@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Fallout 2 CE
+Comment=Fallout 2 Community Edition
+Exec=start_fallout2.sh
+Icon=fallout2
+Terminal=false
+Type=Application
+Categories=Game;

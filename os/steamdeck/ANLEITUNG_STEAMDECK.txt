@@ -1,0 +1,31 @@
+=== Fallout 2 CE - Steam Deck Anleitung ===
+
+1. Kopiere folgende Originaldateien in diesen Ordner:
+   - master.dat (kleingeschrieben)
+   - critter.dat (kleingeschrieben)
+   - patch000.dat (kleingeschrieben)
+   - f2_res.dat (falls vorhanden)
+   - sound/ (Ordner mit music/)
+   - data/ (Ordner)
+
+2. In Steam einbinden (im Desktop-Modus):
+   - Öffne Steam -> 'Spiel hinzufügen' -> 'Steam-fremdes Spiel hinzufügen'
+   - Im Dateiauswahlfenster unten Dateityp auf 'All Files (*)' stellen
+   - Datei 'start_fallout2.sh' auswählen
+   - Zurück in den Gaming-Modus wechseln und starten!
+
+3. Controller-Steuerung auf dem Steam Deck:
+   - Linker / Rechter Stick: Cursor flüssig bewegen (Dual-Stick Support)
+   - A oder RT: Linksklick (Laufen, Reden, Schießen, Bestätigen)
+   - X oder LT: Rechtsklick (Cursor-Modus wechseln)
+   - B: Inventar ('i')
+   - Y: Pip-Boy ('p')
+   - Select (kurz drücken): Charakterbogen ('c')
+   - Select + RB: Quick Save (Schnellspeichern)
+   - Select + LB: Quick Load (Schnellladen)
+   - L3 (Stick-Klick): Loot-Scanner an/aus (Alle Items & Kisten leuchten auf!)
+   - Select + L3: Schleichen an/aus (Sneak)
+   - RB: Waffe in der Hand wechseln ('b')
+   - LB: Kampf starten ('a') bzw. Runde beenden (Enter)
+   - Start: Pause / Menü / Esc
+   - D-Pad: Inventar & Dialoge scrollen
