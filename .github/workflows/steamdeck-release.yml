@@ -38,77 +38,11 @@ jobs:
       - name: Prepare Steam Deck Package
         run: |
           mkdir -p steamdeck-package
+          cp -r os/steamdeck/* steamdeck-package/
+          cp os/windows/fallout2-ce.ico steamdeck-package/fallout2.ico 2>/dev/null || true
           cp build-linux/fallout2-ce steamdeck-package/
           chmod +x steamdeck-package/fallout2-ce
-
-          # Create default Steam Deck f2_res.ini (1280x800 native Deck resolution)
-          cat << 'EOF' > steamdeck-package/f2_res.ini
-          [MAIN]
-          SCR_WIDTH=1280
-          SCR_HEIGHT=800
-          WINDOWED=0
-          SCALE_2X=0
-          EOF
-
-          # Create default fallout2.cfg with German language and Linux forward-slash paths
-          cat << 'EOF' > steamdeck-package/fallout2.cfg
-          [sound]
-          music_path1=sound/music/
-          music_path2=sound/music/
-
-          [system]
-          language=german
-          critter_dat=critter.dat
-          critter_patches=data
-          master_dat=master.dat
-          master_patches=data
-          EOF
-
-          # Create starter script that ensures correct working directory on SteamOS
-          cat << 'EOF' > steamdeck-package/start_fallout2.sh
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          chmod +x ./fallout2-ce
-          exec ./fallout2-ce "$@"
-          EOF
           chmod +x steamdeck-package/start_fallout2.sh
-
-          # Create .desktop file so Steam sees it automatically
-          cat << 'EOF' > steamdeck-package/fallout2-ce.desktop
-          [Desktop Entry]
-          Name=Fallout 2 CE
-          Comment=Fallout 2 Community Edition
-          Exec=start_fallout2.sh
-          Icon=fallout2
-          Terminal=false
-          Type=Application
-          Categories=Game;
-          EOF
-
-          cp os/windows/fallout2-ce.ico steamdeck-package/fallout2.ico 2>/dev/null || true
-
-          # Instructions
-          cat << 'EOF' > steamdeck-package/ANLEITUNG_STEAMDECK.txt
-          === Fallout 2 CE - Steam Deck Anleitung ===
-
-          1. Kopiere folgende Originaldateien in diesen Ordner:
-             - master.dat (kleingeschrieben)
-             - critter.dat (kleingeschrieben)
-             - patch000.dat (kleingeschrieben)
-             - f2_res.dat (falls vorhanden)
-             - sound/ (Ordner mit music/)
-             - data/ (Ordner)
-
-          2. In Steam einbinden (im Desktop-Modus):
-             - Öffne Steam -> 'Spiel hinzufügen' -> 'Steam-fremdes Spiel hinzufügen'
-             - Im Dateiauswahlfenster unten Dateityp auf 'All Files (*)' oder 'start_fallout2.sh' auswählen
-             - Alternativ direkt 'start_fallout2.sh' auswählen!
-             - Zurück in den Gaming-Modus wechseln und starten!
-
-          WICHTIG bei Absturz nach 'Please Standby':
-          - Deine fallout2.cfg MUSS 'language=german' enthalten (ist in diesem Paket bereits vorkonfiguriert).
-          EOF
-
           cd steamdeck-package
           zip -r ../fallout2-ce-steamdeck.zip .
 
