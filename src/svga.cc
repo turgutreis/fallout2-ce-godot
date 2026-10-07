@@ -2,11 +2,14 @@
 
 #include <limits.h>
 #include <string.h>
+#include <vector>
 
 #include <SDL.h>
 
 #include "config.h"
+#include "display_monitor.h"
 #include "draw.h"
+#include "game_sound.h"
 #include "interface.h"
 #include "memory.h"
 #include "mouse.h"
@@ -138,6 +141,11 @@ int _GNW95_init_mode_ex(int width, int height, int bpp)
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_WIDTH", &gInterfaceBarWidth);
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_SIDE_ART", &gInterfaceSidePanelsImageId);
             configGetBool(&resolutionConfig, "IFACE", "IFACE_BAR_SIDES_ORI", &gInterfaceSidePanelsExtendFromScreenEdge);
+
+            int crtFilterValue;
+            if (configGetInt(&resolutionConfig, "MAIN", "CRT_FILTER", &crtFilterValue)) {
+                setCrtFilterMode(crtFilterValue);
+            }
         }
         configFree(&resolutionConfig);
     }
@@ -354,6 +362,108 @@ int screenGetVisibleHeight()
     return screenGetHeight() - windowBottomMargin;
 }
 
+static SDL_Texture* gCrtOverlayTexture = nullptr;
+static int gCrtFilterMode = CRT_FILTER_OFF;
+
+static void updateCrtOverlayTexture(int width, int height)
+{
+    if (gCrtOverlayTexture != nullptr) {
+        SDL_DestroyTexture(gCrtOverlayTexture);
+        gCrtOverlayTexture = nullptr;
+    }
+
+    if (gCrtFilterMode == CRT_FILTER_OFF || gSdlRenderer == nullptr || width <= 0 || height <= 0) {
+        return;
+    }
+
+    gCrtOverlayTexture = SDL_CreateTexture(gSdlRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, width, height);
+    if (gCrtOverlayTexture == nullptr) {
+        return;
+    }
+
+    SDL_SetTextureBlendMode(gCrtOverlayTexture, SDL_BLENDMODE_BLEND);
+
+    std::vector<Uint32> pixels(width * height, 0);
+
+    float centerX = width * 0.5f;
+    float centerY = height * 0.5f;
+
+    for (int y = 0; y < height; ++y) {
+        bool isScanline = (y % 2 == 1);
+        int baseAlpha = 0;
+
+        if (gCrtFilterMode == CRT_FILTER_SCANLINES) {
+            // Mode 1: Sanfte Scanlines
+            if (isScanline) {
+                baseAlpha = 55; // ~22% darkening
+            }
+            Uint32 linePixel = ((Uint32)baseAlpha << 24);
+            for (int x = 0; x < width; ++x) {
+                pixels[y * width + x] = linePixel;
+            }
+        } else if (gCrtFilterMode == CRT_FILTER_RETRO_CRT) {
+            // Mode 2: Retro CRT-Monitor (Aperture Grille + stärkere Scanlines + Vignette)
+            if (isScanline) {
+                baseAlpha = 75; // ~30% darkening
+            }
+
+            float dy = (float)(y - centerY) / centerY;
+            for (int x = 0; x < width; ++x) {
+                float dx = (float)(x - centerX) / centerX;
+                float distSq = dx * dx + dy * dy;
+
+                float vigFactor = 0.0f;
+                if (distSq > 0.4f) {
+                    vigFactor = (distSq - 0.4f) * 35.0f;
+                }
+
+                int aperture = (x % 3 == 0) ? 12 : 0;
+
+                int totalAlpha = baseAlpha + (int)vigFactor + aperture;
+                if (totalAlpha > 200) totalAlpha = 200;
+
+                pixels[y * width + x] = ((Uint32)totalAlpha << 24);
+            }
+        }
+    }
+
+    SDL_UpdateTexture(gCrtOverlayTexture, nullptr, pixels.data(), width * sizeof(Uint32));
+}
+
+void setCrtFilterMode(int mode)
+{
+    if (mode < 0 || mode >= CRT_FILTER_COUNT) {
+        mode = CRT_FILTER_OFF;
+    }
+    gCrtFilterMode = mode;
+    if (gSdlRenderer != nullptr) {
+        updateCrtOverlayTexture(screenGetWidth(), screenGetHeight());
+    }
+}
+
+int getCrtFilterMode()
+{
+    return gCrtFilterMode;
+}
+
+void cycleCrtFilterMode()
+{
+    int nextMode = (gCrtFilterMode + 1) % CRT_FILTER_COUNT;
+    setCrtFilterMode(nextMode);
+
+    soundPlayFile("toggle");
+
+    const char* modeNames[CRT_FILTER_COUNT] = {
+        "Aus",
+        "Sanfte Scanlines",
+        "Retro CRT-Monitor"
+    };
+
+    char msg[64];
+    snprintf(msg, sizeof(msg), "CRT-Filter: %s", modeNames[gCrtFilterMode]);
+    displayMonitorAddMessage(msg);
+}
+
 static bool createRenderer(int width, int height)
 {
     gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
@@ -380,11 +490,20 @@ static bool createRenderer(int width, int height)
         return false;
     }
 
+    if (gCrtFilterMode != CRT_FILTER_OFF) {
+        updateCrtOverlayTexture(width, height);
+    }
+
     return true;
 }
 
 static void destroyRenderer()
 {
+    if (gCrtOverlayTexture != nullptr) {
+        SDL_DestroyTexture(gCrtOverlayTexture);
+        gCrtOverlayTexture = nullptr;
+    }
+
     if (gSdlTextureSurface != nullptr) {
         SDL_FreeSurface(gSdlTextureSurface);
         gSdlTextureSurface = nullptr;
@@ -412,6 +531,9 @@ void renderPresent()
     SDL_UpdateTexture(gSdlTexture, nullptr, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
     SDL_RenderClear(gSdlRenderer);
     SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, nullptr);
+    if (gCrtFilterMode != CRT_FILTER_OFF && gCrtOverlayTexture != nullptr) {
+        SDL_RenderCopy(gSdlRenderer, gCrtOverlayTexture, nullptr, nullptr);
+    }
     SDL_RenderPresent(gSdlRenderer);
 }
 

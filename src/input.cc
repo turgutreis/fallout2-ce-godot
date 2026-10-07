@@ -218,6 +218,11 @@ void enqueueInputEvent(int a1)
         return;
     }
 
+    if (a1 == KEY_F11) {
+        cycleCrtFilterMode();
+        return;
+    }
+
     if (gInputEventQueueWriteIndex == gInputEventQueueReadIndex) {
         return;
     }
