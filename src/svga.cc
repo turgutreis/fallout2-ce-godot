@@ -2,14 +2,11 @@
 
 #include <limits.h>
 #include <string.h>
-#include <vector>
 
 #include <SDL.h>
 
 #include "config.h"
-#include "display_monitor.h"
 #include "draw.h"
-#include "game_sound.h"
 #include "interface.h"
 #include "memory.h"
 #include "mouse.h"
@@ -141,11 +138,6 @@ int _GNW95_init_mode_ex(int width, int height, int bpp)
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_WIDTH", &gInterfaceBarWidth);
             configGetInt(&resolutionConfig, "IFACE", "IFACE_BAR_SIDE_ART", &gInterfaceSidePanelsImageId);
             configGetBool(&resolutionConfig, "IFACE", "IFACE_BAR_SIDES_ORI", &gInterfaceSidePanelsExtendFromScreenEdge);
-
-            int crtFilterValue;
-            if (configGetInt(&resolutionConfig, "MAIN", "CRT_FILTER", &crtFilterValue)) {
-                setCrtFilterMode(crtFilterValue);
-            }
         }
         configFree(&resolutionConfig);
     }
@@ -362,143 +354,6 @@ int screenGetVisibleHeight()
     return screenGetHeight() - windowBottomMargin;
 }
 
-static SDL_Texture* gCrtOverlayTexture = nullptr;
-static int gCrtFilterMode = CRT_FILTER_OFF;
-
-static void updateCrtOverlayTexture(int width, int height)
-{
-    if (gCrtOverlayTexture != nullptr) {
-        SDL_DestroyTexture(gCrtOverlayTexture);
-        gCrtOverlayTexture = nullptr;
-    }
-
-    if (gCrtFilterMode == CRT_FILTER_OFF || gSdlRenderer == nullptr || width <= 0 || height <= 0) {
-        return;
-    }
-
-    gCrtOverlayTexture = SDL_CreateTexture(gSdlRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, width, height);
-    if (gCrtOverlayTexture == nullptr) {
-        return;
-    }
-
-    SDL_SetTextureBlendMode(gCrtOverlayTexture, SDL_BLENDMODE_BLEND);
-
-    std::vector<Uint32> pixels(width * height, 0);
-
-    float centerX = width * 0.5f;
-    float centerY = height * 0.5f;
-
-    // Scanline-Abstand: Bei höheren Auflösungen (>= 600 z.B. 720p/800p) alle 3 Zeilen (240-266 sichtbare Scanlines)
-    // Bei niedrigeren Auflösungen (480p) alle 2 Zeilen (240 sichtbare Scanlines)
-    const int scanlinePeriod = (height >= 600) ? 3 : 2;
-
-    for (int y = 0; y < height; ++y) {
-        int rowInPeriod = y % scanlinePeriod;
-        bool isScanlineGap = (rowInPeriod == 0);
-
-        if (gCrtFilterMode == CRT_FILTER_SCANLINES) {
-            // Mode 1: Deutliche, sofort sichtbare Scanlines
-            // Die Abtastzeile hat tiefes Schwarz (~70% Abdunklung), der Strahlkern bleibt 100% klar
-            Uint8 a = isScanlineGap ? 175 : 0;
-            Uint32 pixelColor = ((Uint32)a << 24);
-            for (int x = 0; x < width; ++x) {
-                pixels[y * width + x] = pixelColor;
-            }
-        } else if (gCrtFilterMode == CRT_FILTER_RETRO_CRT) {
-            // Mode 2: Voller Retro CRT Röhren-Look
-            // - Kräftige Scanlines (alpha 195 -> ~76% Abdunklung)
-            // - Echtes RGB-Phosphor-Gitter (Rot, Grün, Blau Subpixel-Streifen)
-            // - Abgerundete Röhrenecken & Glas-Vignette
-            float ny = (float)(y - centerY) / centerY;
-            float ny2 = ny * ny;
-            float ny4 = ny2 * ny2;
-
-            for (int x = 0; x < width; ++x) {
-                float nx = (float)(x - centerX) / centerX;
-                float nx2 = nx * nx;
-                float nx4 = nx2 * nx2;
-
-                // Abgerundete Ecken (Superellipse / Curved Tube Glass)
-                float corner = nx4 + ny4;
-                if (corner > 1.50f) {
-                    // Außerhalb der Röhre: massives Schwarz
-                    pixels[y * width + x] = 0xFF000000;
-                    continue;
-                }
-
-                int totalA = 0;
-                Uint8 r = 0, g = 0, b = 0;
-
-                if (isScanlineGap) {
-                    // Dunkle Kathodenstrahl-Abtastzeile
-                    totalA = 195;
-                } else {
-                    // Phosphor Mask: Rote, grüne und blaue Streifen
-                    int subpixel = x % 3;
-                    if (subpixel == 0) {
-                        r = 255; g = 30; b = 30; totalA = 26;
-                    } else if (subpixel == 1) {
-                        r = 30; g = 255; b = 30; totalA = 26;
-                    } else {
-                        r = 30; g = 30; b = 255; totalA = 26;
-                    }
-                }
-
-                // Vignette & Glaswölbung am Rand
-                float distSq = nx2 + ny2;
-                int vigAlpha = (int)(distSq * 28.0f);
-
-                // Weicher Schatten an den abgerundeten Glasecken
-                if (corner > 1.25f) {
-                    vigAlpha += (int)((corner - 1.25f) * 600.0f);
-                }
-
-                totalA += vigAlpha;
-                if (totalA > 255) totalA = 255;
-
-                // ARGB8888 packen
-                pixels[y * width + x] = ((Uint32)totalA << 24) | ((Uint32)r << 16) | ((Uint32)g << 8) | (Uint32)b;
-            }
-        }
-    }
-
-    SDL_UpdateTexture(gCrtOverlayTexture, nullptr, pixels.data(), width * sizeof(Uint32));
-}
-
-void setCrtFilterMode(int mode)
-{
-    if (mode < 0 || mode >= CRT_FILTER_COUNT) {
-        mode = CRT_FILTER_OFF;
-    }
-    gCrtFilterMode = mode;
-    if (gSdlRenderer != nullptr) {
-        updateCrtOverlayTexture(screenGetWidth(), screenGetHeight());
-    }
-}
-
-int getCrtFilterMode()
-{
-    return gCrtFilterMode;
-}
-
-void cycleCrtFilterMode()
-{
-    int nextMode = (gCrtFilterMode + 1) % CRT_FILTER_COUNT;
-    setCrtFilterMode(nextMode);
-
-    soundPlayFile("toggle");
-
-    const char* modeNames[CRT_FILTER_COUNT] = {
-        "Aus",
-        "Sanfte Scanlines",
-        "Retro CRT-Monitor"
-    };
-
-    char msg[64];
-    snprintf(msg, sizeof(msg), "CRT-Filter: %s", modeNames[gCrtFilterMode]);
-    displayMonitorAddMessage(msg);
-}
-
 static bool createRenderer(int width, int height)
 {
     gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
@@ -525,20 +380,11 @@ static bool createRenderer(int width, int height)
         return false;
     }
 
-    if (gCrtFilterMode != CRT_FILTER_OFF) {
-        updateCrtOverlayTexture(width, height);
-    }
-
     return true;
 }
 
 static void destroyRenderer()
 {
-    if (gCrtOverlayTexture != nullptr) {
-        SDL_DestroyTexture(gCrtOverlayTexture);
-        gCrtOverlayTexture = nullptr;
-    }
-
     if (gSdlTextureSurface != nullptr) {
         SDL_FreeSurface(gSdlTextureSurface);
         gSdlTextureSurface = nullptr;
@@ -566,9 +412,6 @@ void renderPresent()
     SDL_UpdateTexture(gSdlTexture, nullptr, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
     SDL_RenderClear(gSdlRenderer);
     SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, nullptr);
-    if (gCrtFilterMode != CRT_FILTER_OFF && gCrtOverlayTexture != nullptr) {
-        SDL_RenderCopy(gSdlRenderer, gCrtOverlayTexture, nullptr, nullptr);
-    }
     SDL_RenderPresent(gSdlRenderer);
 }
 

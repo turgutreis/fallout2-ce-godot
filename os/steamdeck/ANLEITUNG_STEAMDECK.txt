@@ -28,5 +28,4 @@
    - RB: Waffe in der Hand wechseln ('b')
    - LB: Kampf starten ('a') bzw. Runde beenden (Enter)
    - Start: Pause / Menü / Esc
-   - Select + D-Pad Oben: CRT-Filter umschalten (Aus -> Sanfte Scanlines -> Retro CRT)
-   - D-Pad: Inventar & Dialoge scrollen (F11 schaltet Filter auf Tastatur)
+   - D-Pad: Inventar & Dialoge scrollen

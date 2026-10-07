@@ -46,17 +46,6 @@ int screenGetVisibleHeight();
 void handleWindowSizeChanged();
 void renderPresent();
 
-enum CrtFilterMode {
-    CRT_FILTER_OFF = 0,
-    CRT_FILTER_SCANLINES = 1,
-    CRT_FILTER_RETRO_CRT = 2,
-    CRT_FILTER_COUNT = 3,
-};
-
-void setCrtFilterMode(int mode);
-int getCrtFilterMode();
-void cycleCrtFilterMode();
-
 } // namespace fallout
 
 #endif /* FALLOUT_SVGA_H_ */

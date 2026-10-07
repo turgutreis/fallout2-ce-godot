@@ -9,7 +9,6 @@
 #include "kb.h"
 #include "mouse.h"
 #include "object.h"
-#include "svga.h"
 #include "tile.h"
 
 namespace fallout {
@@ -188,14 +187,9 @@ void gamepadHandleEvent(const SDL_Event* event)
             enqueueInputEvent(KEY_LOWERCASE_S); // Skilldex
             break;
         case SDL_CONTROLLER_BUTTON_DPAD_UP:
-            if (gButtonBackHeld) {
-                gButtonBackUsedCombo = true;
-                cycleCrtFilterMode();
-            } else {
-                gDpadUpHeld = true;
-                gDpadLastTick = SDL_GetTicks();
-                gDpadNextRepeatDelay = kDpadRepeatInitialDelayMs;
-            }
+            gDpadUpHeld = true;
+            gDpadLastTick = SDL_GetTicks();
+            gDpadNextRepeatDelay = kDpadRepeatInitialDelayMs;
             break;
         case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
             gDpadDownHeld = true;
