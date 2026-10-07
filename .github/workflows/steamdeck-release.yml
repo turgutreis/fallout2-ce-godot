@@ -1,0 +1,93 @@
+name: Steam Deck & Linux Release Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-steamdeck:
+    name: Build Steam Deck Bundle (x64 Linux)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake libsdl2-dev zlib1g-dev zip
+
+      - name: Configure CMake (Release)
+        run: |
+          cmake -B build-linux \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFALLOUT_VENDORED=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+      - name: Build fallout2-ce
+        run: |
+          cmake --build build-linux -j$(nproc)
+
+      - name: Prepare Steam Deck Package
+        run: |
+          mkdir -p steamdeck-package
+          cp build-linux/fallout2-ce steamdeck-package/
+          chmod +x steamdeck-package/fallout2-ce
+
+          # Create default Steam Deck f2_res.ini (1280x800 native Deck resolution)
+          cat << 'EOF' > steamdeck-package/f2_res.ini
+          [MAIN]
+          SCR_WIDTH=1280
+          SCR_HEIGHT=800
+          WINDOWED=0
+          SCALE_2X=0
+          EOF
+
+          # Create default fallout2.cfg with Linux forward-slash paths
+          cat << 'EOF' > steamdeck-package/fallout2.cfg
+          [sound]
+          music_path1=sound/music/
+          music_path2=sound/music/
+
+          [system]
+          critter_dat=critter.dat
+          critter_patches=data
+          master_dat=master.dat
+          master_patches=data
+          EOF
+
+          # Instructions
+          cat << 'EOF' > steamdeck-package/ANLEITUNG_STEAMDECK.txt
+          === Fallout 2 CE - Steam Deck Anleitung ===
+
+          1. Kopiere folgende Originaldateien in diesen Ordner:
+             - master.dat (kleingeschrieben)
+             - critter.dat (kleingeschrieben)
+             - patch000.dat (kleingeschrieben)
+             - sound/ (Ordner mit music/)
+             - data/ (Ordner)
+
+          2. In Steam einbinden (im Desktop-Modus):
+             - Öffne Steam -> 'Spiel hinzufügen' -> 'Steam-fremdes Spiel hinzufügen'
+             - Wähle die Datei 'fallout2-ce' aus.
+             - Zurück in den Gaming-Modus wechseln und starten!
+
+          Die Steuerung mit dem Steam Deck Controller ist bereits fest in der Engine aktiviert.
+          EOF
+
+          cd steamdeck-package
+          zip -r ../fallout2-ce-steamdeck.zip .
+
+      - name: Upload Steam Deck Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: fallout2-ce-steamdeck
+          path: fallout2-ce-steamdeck.zip
+          retention-days: 30
