@@ -186,7 +186,7 @@ int _GNW95_init_window(int width, int height, bool fullscreen, int scale)
         Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI;
 
         if (fullscreen) {
-            windowFlags |= SDL_WINDOW_FULLSCREEN;
+            windowFlags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
         }
 
         gSdlWindow = SDL_CreateWindow(gProgramWindowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width * scale, height * scale, windowFlags);
@@ -388,41 +388,76 @@ static void updateCrtOverlayTexture(int width, int height)
     float centerX = width * 0.5f;
     float centerY = height * 0.5f;
 
+    // Scanline-Abstand: Bei höheren Auflösungen (>= 600 z.B. 720p/800p) alle 3 Zeilen (240-266 sichtbare Scanlines)
+    // Bei niedrigeren Auflösungen (480p) alle 2 Zeilen (240 sichtbare Scanlines)
+    const int scanlinePeriod = (height >= 600) ? 3 : 2;
+
     for (int y = 0; y < height; ++y) {
-        bool isScanline = (y % 2 == 1);
-        int baseAlpha = 0;
+        int rowInPeriod = y % scanlinePeriod;
+        bool isScanlineGap = (rowInPeriod == 0);
 
         if (gCrtFilterMode == CRT_FILTER_SCANLINES) {
-            // Mode 1: Sanfte Scanlines
-            if (isScanline) {
-                baseAlpha = 55; // ~22% darkening
-            }
-            Uint32 linePixel = ((Uint32)baseAlpha << 24);
+            // Mode 1: Deutliche, sofort sichtbare Scanlines
+            // Die Abtastzeile hat tiefes Schwarz (~70% Abdunklung), der Strahlkern bleibt 100% klar
+            Uint8 a = isScanlineGap ? 175 : 0;
+            Uint32 pixelColor = ((Uint32)a << 24);
             for (int x = 0; x < width; ++x) {
-                pixels[y * width + x] = linePixel;
+                pixels[y * width + x] = pixelColor;
             }
         } else if (gCrtFilterMode == CRT_FILTER_RETRO_CRT) {
-            // Mode 2: Retro CRT-Monitor (Aperture Grille + stärkere Scanlines + Vignette)
-            if (isScanline) {
-                baseAlpha = 75; // ~30% darkening
-            }
+            // Mode 2: Voller Retro CRT Röhren-Look
+            // - Kräftige Scanlines (alpha 195 -> ~76% Abdunklung)
+            // - Echtes RGB-Phosphor-Gitter (Rot, Grün, Blau Subpixel-Streifen)
+            // - Abgerundete Röhrenecken & Glas-Vignette
+            float ny = (float)(y - centerY) / centerY;
+            float ny2 = ny * ny;
+            float ny4 = ny2 * ny2;
 
-            float dy = (float)(y - centerY) / centerY;
             for (int x = 0; x < width; ++x) {
-                float dx = (float)(x - centerX) / centerX;
-                float distSq = dx * dx + dy * dy;
+                float nx = (float)(x - centerX) / centerX;
+                float nx2 = nx * nx;
+                float nx4 = nx2 * nx2;
 
-                float vigFactor = 0.0f;
-                if (distSq > 0.4f) {
-                    vigFactor = (distSq - 0.4f) * 35.0f;
+                // Abgerundete Ecken (Superellipse / Curved Tube Glass)
+                float corner = nx4 + ny4;
+                if (corner > 1.50f) {
+                    // Außerhalb der Röhre: massives Schwarz
+                    pixels[y * width + x] = 0xFF000000;
+                    continue;
                 }
 
-                int aperture = (x % 3 == 0) ? 12 : 0;
+                int totalA = 0;
+                Uint8 r = 0, g = 0, b = 0;
 
-                int totalAlpha = baseAlpha + (int)vigFactor + aperture;
-                if (totalAlpha > 200) totalAlpha = 200;
+                if (isScanlineGap) {
+                    // Dunkle Kathodenstrahl-Abtastzeile
+                    totalA = 195;
+                } else {
+                    // Phosphor Mask: Rote, grüne und blaue Streifen
+                    int subpixel = x % 3;
+                    if (subpixel == 0) {
+                        r = 255; g = 30; b = 30; totalA = 26;
+                    } else if (subpixel == 1) {
+                        r = 30; g = 255; b = 30; totalA = 26;
+                    } else {
+                        r = 30; g = 30; b = 255; totalA = 26;
+                    }
+                }
 
-                pixels[y * width + x] = ((Uint32)totalAlpha << 24);
+                // Vignette & Glaswölbung am Rand
+                float distSq = nx2 + ny2;
+                int vigAlpha = (int)(distSq * 28.0f);
+
+                // Weicher Schatten an den abgerundeten Glasecken
+                if (corner > 1.25f) {
+                    vigAlpha += (int)((corner - 1.25f) * 600.0f);
+                }
+
+                totalA += vigAlpha;
+                if (totalA > 255) totalA = 255;
+
+                // ARGB8888 packen
+                pixels[y * width + x] = ((Uint32)totalA << 24) | ((Uint32)r << 16) | ((Uint32)g << 8) | (Uint32)b;
             }
         }
     }
