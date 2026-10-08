@@ -1876,6 +1876,7 @@ int _gdProcess()
     int pageIndex = 0;
     int pageOffsets[10];
     pageOffsets[0] = 0;
+    int selectedOptionIndex = -1;
     for (;;) {
         sharedFpsLimiter.mark();
 
@@ -1945,27 +1946,58 @@ int _gdProcess()
                 }
             }
 
-            if (keyCode == KEY_ARROW_UP) {
-                if (pageIndex > 0) {
-                    pageIndex--;
-                    dword_58F4E0 = pageOffsets[pageIndex];
-                    v18 = 0;
-                    gameDialogRenderReply();
-                }
-            } else if (keyCode == KEY_ARROW_DOWN) {
-                if (pageIndex < pageCount) {
-                    pageIndex++;
-                    dword_58F4E0 = pageOffsets[pageIndex];
-                    v18 = 0;
-                    gameDialogRenderReply();
-                } else {
-                    if (dword_58F4E0 != 0) {
-                        tick = v6;
-                        pageIndex++;
-                        pageCount++;
-                        pageOffsets[pageCount] = dword_58F4E0;
+            if (_gdReplyTooBig) {
+                if (keyCode == KEY_ARROW_UP) {
+                    if (pageIndex > 0) {
+                        pageIndex--;
+                        dword_58F4E0 = pageOffsets[pageIndex];
                         v18 = 0;
                         gameDialogRenderReply();
+                    }
+                } else if (keyCode == KEY_ARROW_DOWN) {
+                    if (pageIndex < pageCount) {
+                        pageIndex++;
+                        dword_58F4E0 = pageOffsets[pageIndex];
+                        v18 = 0;
+                        gameDialogRenderReply();
+                    } else {
+                        if (dword_58F4E0 != 0) {
+                            tick = v6;
+                            pageIndex++;
+                            pageCount++;
+                            pageOffsets[pageCount] = dword_58F4E0;
+                            v18 = 0;
+                            gameDialogRenderReply();
+                        }
+                    }
+                }
+            } else {
+                // Gamepad / Keyboard D-Pad dialogue option navigation
+                if (keyCode == KEY_ARROW_UP) {
+                    if (gGameDialogOptionEntriesLength > 0) {
+                        int prevSelected = (selectedOptionIndex >= 0) ? selectedOptionIndex : 0;
+                        if (selectedOptionIndex > 0) {
+                            selectedOptionIndex--;
+                        } else {
+                            selectedOptionIndex = gGameDialogOptionEntriesLength - 1;
+                        }
+                        if (prevSelected != selectedOptionIndex) {
+                            gameDialogOptionOnMouseExit(prevSelected);
+                        }
+                        gameDialogOptionOnMouseEnter(selectedOptionIndex);
+                    }
+                } else if (keyCode == KEY_ARROW_DOWN) {
+                    if (gGameDialogOptionEntriesLength > 0) {
+                        int prevSelected = (selectedOptionIndex >= 0) ? selectedOptionIndex : 0;
+                        if (selectedOptionIndex < gGameDialogOptionEntriesLength - 1) {
+                            selectedOptionIndex++;
+                        } else {
+                            selectedOptionIndex = 0;
+                        }
+                        if (prevSelected != selectedOptionIndex) {
+                            gameDialogOptionOnMouseExit(prevSelected);
+                        }
+                        gameDialogOptionOnMouseEnter(selectedOptionIndex);
                     }
                 }
             }
@@ -1973,9 +2005,31 @@ int _gdProcess()
 
         if (keyCode != -1) {
             if (keyCode >= 1200 && keyCode <= 1250) {
-                gameDialogOptionOnMouseEnter(keyCode - 1200);
+                selectedOptionIndex = keyCode - 1200;
+                gameDialogOptionOnMouseEnter(selectedOptionIndex);
             } else if (keyCode >= 1300 && keyCode <= 1330) {
                 gameDialogOptionOnMouseExit(keyCode - 1300);
+            } else if (keyCode == KEY_RETURN && selectedOptionIndex >= 0 && selectedOptionIndex < gGameDialogOptionEntriesLength) {
+                // Confirm highlighted dialog option with Return / Controller
+                int v11 = selectedOptionIndex;
+                selectedOptionIndex = -1;
+                pageCount = 0;
+                pageIndex = 0;
+                pageOffsets[0] = 0;
+                _gdReplyTooBig = 0;
+
+                if (_gdProcessChoice(v11) == -1) {
+                    break;
+                }
+
+                tick = getTicks();
+
+                if (dword_58F4E0) {
+                    v18 = 1;
+                    _gdReplyTooBig = 1;
+                } else {
+                    v18 = 0;
+                }
             } else if (keyCode >= 48 && keyCode <= 57) {
                 // SFALL: Prevents from using 0 to escape from dialogue at any time.
                 if (keyCode == KEY_0 && gGameDialogFix) {
@@ -1984,6 +2038,7 @@ int _gdProcess()
 
                 int v11 = keyCode - 49;
                 if (v11 < gGameDialogOptionEntriesLength) {
+                    selectedOptionIndex = -1;
                     pageCount = 0;
                     pageIndex = 0;
                     pageOffsets[0] = 0;

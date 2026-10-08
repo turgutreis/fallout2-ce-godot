@@ -4268,7 +4268,7 @@ int inventoryOpenLooting(Object* looter, Object* target)
             break;
         }
 
-        if (keyCode == KEY_UPPERCASE_A) {
+        if (keyCode == KEY_UPPERCASE_A || keyCode == KEY_LOWERCASE_A) {
             if (!_gIsSteal) {
                 int maxCarryWeight = critterGetStat(looter, STAT_CARRY_WEIGHT);
                 int currentWeight = objectGetInventoryWeight(looter);

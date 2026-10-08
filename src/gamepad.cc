@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "combat.h"
+#include "game.h"
 #include "input.h"
 #include "kb.h"
 #include "mouse.h"
@@ -134,10 +135,24 @@ void gamepadHandleEvent(const SDL_Event* event)
             gButtonALeftClick = true;
             break;
         case SDL_CONTROLLER_BUTTON_X:
-            gButtonXRightClick = true;
+            if (GameMode::isInGameMode(GameMode::kLoot)) {
+                // Quick-Loot / Take-All in loot/container screen
+                enqueueInputEvent(KEY_UPPERCASE_A);
+            } else {
+                gButtonXRightClick = true;
+            }
             break;
         case SDL_CONTROLLER_BUTTON_B:
-            enqueueInputEvent(KEY_LOWERCASE_I); // Inventory
+            if (GameMode::isInGameMode(GameMode::kLoot | GameMode::kInventory | GameMode::kDialog |
+                                       GameMode::kPipboy | GameMode::kOptions | GameMode::kSkilldex |
+                                       GameMode::kAutomap | GameMode::kEditor | GameMode::kSaveGame |
+                                       GameMode::kLoadGame | GameMode::kPreferences | GameMode::kHelp |
+                                       GameMode::kBarter | GameMode::kDialogReview)) {
+                // Modal screen active: B acts as DONE / CANCEL / CLOSE
+                enqueueInputEvent(KEY_ESCAPE);
+            } else {
+                enqueueInputEvent(KEY_LOWERCASE_I); // Open Inventory
+            }
             break;
         case SDL_CONTROLLER_BUTTON_Y:
             enqueueInputEvent(KEY_LOWERCASE_P); // Pip-Boy
