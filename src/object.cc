@@ -11,9 +11,11 @@
 #include "combat.h"
 #include "critter.h"
 #include "debug.h"
+#include "display_monitor.h"
 #include "draw.h"
 #include "game.h"
 #include "game_mouse.h"
+#include "game_sound.h"
 #include "item.h"
 #include "light.h"
 #include "map.h"
@@ -1813,6 +1815,35 @@ int _obj_turn_off_light(Object* obj, Rect* rect)
     }
 
     return 0;
+}
+
+static bool gFlashlightActive = false;
+
+void toggleFlashlight()
+{
+    if (gDude == nullptr) {
+        return;
+    }
+
+    gFlashlightActive = !gFlashlightActive;
+
+    Rect rect;
+    if (gFlashlightActive) {
+        objectSetLight(gDude, 6, LIGHT_INTENSITY_MAX, &rect);
+        soundPlayFile("toggle");
+        displayMonitorAddMessage("Taschenlampe: An");
+    } else {
+        objectSetLight(gDude, 0, 0, &rect);
+        soundPlayFile("toggle");
+        displayMonitorAddMessage("Taschenlampe: Aus");
+    }
+
+    tileWindowRefresh();
+}
+
+bool isFlashlightActive()
+{
+    return gFlashlightActive;
 }
 
 // 0x48ADF0

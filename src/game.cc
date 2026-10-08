@@ -865,6 +865,9 @@ int gameHandleKey(int eventCode, bool isInCombatMode)
             }
         }
         break;
+    case KEY_LOWERCASE_L:
+        toggleFlashlight();
+        break;
     case KEY_F1:
         soundPlayFile("ib1p1xx1");
         showHelp();

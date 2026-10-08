@@ -451,7 +451,10 @@ void cycleUpscaleFilterMode()
 
 static bool createRenderer(int width, int height)
 {
-    gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
+    gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (gSdlRenderer == nullptr) {
+        gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
+    }
     if (gSdlRenderer == nullptr) {
         return false;
     }

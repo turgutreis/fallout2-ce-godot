@@ -29,4 +29,5 @@
    - LB: Kampf starten ('a') bzw. Runde beenden (Enter)
    - Start: Pause / Menü / Esc
    - Select + D-Pad Oben: Bildfilter umschalten (Scharf -> Bilinear -> Scale2x Kantenglättung)
+   - Select + D-Pad Unten: Dynamische Taschenlampe an/aus ('L' auf Tastatur)
    - D-Pad: Inventar & Dialoge scrollen (Ctrl+F / Alt+F auf Tastatur)

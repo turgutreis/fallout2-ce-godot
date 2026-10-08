@@ -50,6 +50,8 @@ int objectSetLight(Object* obj, int lightDistance, int lightIntensity, Rect* rec
 int objectGetLightIntensity(Object* obj);
 int _obj_turn_on_light(Object* obj, Rect* rect);
 int _obj_turn_off_light(Object* obj, Rect* rect);
+void toggleFlashlight();
+bool isFlashlightActive();
 int objectShow(Object* obj, Rect* rect);
 int objectHide(Object* obj, Rect* rect);
 int objectEnableOutline(Object* obj, Rect* rect);

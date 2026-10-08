@@ -198,9 +198,14 @@ void gamepadHandleEvent(const SDL_Event* event)
             }
             break;
         case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-            gDpadDownHeld = true;
-            gDpadLastTick = SDL_GetTicks();
-            gDpadNextRepeatDelay = kDpadRepeatInitialDelayMs;
+            if (gButtonBackHeld) {
+                gButtonBackUsedCombo = true;
+                toggleFlashlight();
+            } else {
+                gDpadDownHeld = true;
+                gDpadLastTick = SDL_GetTicks();
+                gDpadNextRepeatDelay = kDpadRepeatInitialDelayMs;
+            }
             break;
         default:
             break;

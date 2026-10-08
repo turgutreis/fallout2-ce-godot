@@ -602,7 +602,8 @@ int mapGetCurrentMap()
 // 0x4826C0
 int mapScroll(int dx, int dy)
 {
-    if (getTicksSince(gIsoWindowScrollTimestamp) < 33) {
+    // Smooth camera scrolling at 60+ Hz (16ms) instead of legacy 30 Hz (33ms)
+    if (getTicksSince(gIsoWindowScrollTimestamp) < 16) {
         return -2;
     }
 
