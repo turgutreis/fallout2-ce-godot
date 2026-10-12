@@ -1666,7 +1666,7 @@ static int _anim_set_end(int animationSequenceIndex)
 // 0x415E24
 static bool canUseDoor(Object* critter, Object* door)
 {
-    if (critter == gDude) {
+    if (critter == gDude && isInCombat()) {
         if (!_obj_portal_is_walk_thru(door)) {
             return false;
         }
