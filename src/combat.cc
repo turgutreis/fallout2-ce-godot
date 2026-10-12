@@ -42,6 +42,7 @@
 #include "stat.h"
 #include "svga.h"
 #include "text_font.h"
+#include "text_object.h"
 #include "tile.h"
 #include "trait.h"
 #include "window_manager.h"
@@ -5121,6 +5122,23 @@ void _combat_display(Attack* attack)
                 strcat(text, ".");
 
                 displayMonitorAddMessage(text);
+
+                // Floating Combat Text over defender
+                char floatMsg[64];
+                int floatColor = _colorTable[31744]; // Red
+                if ((attack->attackerFlags & DAM_CRITICAL) != 0) {
+                    snprintf(floatMsg, sizeof(floatMsg), "KRIT! -%d", attack->defenderDamage);
+                    floatColor = _colorTable[32747]; // Bright Yellow
+                } else if (attack->defenderDamage > 0) {
+                    snprintf(floatMsg, sizeof(floatMsg), "-%d", attack->defenderDamage);
+                } else {
+                    snprintf(floatMsg, sizeof(floatMsg), "0");
+                    floatColor = _colorTable[21140]; // Gray
+                }
+                Rect floatRect;
+                if (textObjectAdd(v21, floatMsg, 101, floatColor, _colorTable[0], &floatRect) == 0) {
+                    tileWindowRefreshRect(&floatRect, v21->elevation);
+                }
             }
         }
     }
@@ -5160,6 +5178,15 @@ void _combat_display(Attack* attack)
             strcat(text, ".");
 
             displayMonitorAddMessage(text);
+
+            // Floating Combat Text for Miss
+            Object* missTarget = (attack->defender != nullptr) ? attack->defender : attack->attacker;
+            char floatMsg[32];
+            snprintf(floatMsg, sizeof(floatMsg), "VERFEHLT");
+            Rect floatRect;
+            if (textObjectAdd(missTarget, floatMsg, 101, _colorTable[21140], _colorTable[0], &floatRect) == 0) {
+                tileWindowRefreshRect(&floatRect, missTarget->elevation);
+            }
         }
 
         if ((attack->attackerFlags & DAM_HIT) != 0 || (attack->attackerFlags & DAM_CRITICAL) == 0) {
@@ -5180,6 +5207,15 @@ void _combat_display(Attack* attack)
             strcat(text, ".");
 
             displayMonitorAddMessage(text);
+
+            if (attack->extrasDamage[index] > 0) {
+                char floatMsg[32];
+                snprintf(floatMsg, sizeof(floatMsg), "-%d", attack->extrasDamage[index]);
+                Rect floatRect;
+                if (textObjectAdd(critter, floatMsg, 101, _colorTable[31744], _colorTable[0], &floatRect) == 0) {
+                    tileWindowRefreshRect(&floatRect, critter->elevation);
+                }
+            }
         }
     }
 }

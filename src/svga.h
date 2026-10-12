@@ -50,7 +50,8 @@ enum UpscaleFilterMode {
     UPSCALE_FILTER_NEAREST = 0,
     UPSCALE_FILTER_LINEAR = 1,
     UPSCALE_FILTER_SCALE2X = 2,
-    UPSCALE_FILTER_COUNT = 3,
+    UPSCALE_FILTER_MODERN_ATMOSPHERE = 3,
+    UPSCALE_FILTER_COUNT = 4,
 };
 
 void setUpscaleFilterMode(int mode);

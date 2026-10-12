@@ -11,6 +11,7 @@
 #include "draw.h"
 #include "game_sound.h"
 #include "interface.h"
+#include "light.h"
 #include "memory.h"
 #include "mouse.h"
 #include "win32.h"
@@ -441,12 +442,83 @@ void cycleUpscaleFilterMode()
     const char* modeNames[UPSCALE_FILTER_COUNT] = {
         "Knackige Pixel (Original)",
         "Weichzeichnung (Bilinear)",
-        "Scale2x Kantenglaettung"
+        "Scale2x Kantenglaettung",
+        "Modern HD (Scale2x + Licht/Atmosphaere)"
     };
 
     char msg[64];
     snprintf(msg, sizeof(msg), "Bildfilter: %s", modeNames[gUpscaleFilterMode]);
     displayMonitorAddMessage(msg);
+}
+
+static void applyModernAtmosphere(Uint32* buffer, int width, int height)
+{
+    int ambient = lightGetAmbientIntensity();
+    // Normalized ambient: 16384 (dark/night) .. 65536 (full daylight)
+    bool isNightOrCave = (ambient < 42000);
+    int visibleHeight = screenGetVisibleHeight() * 2; // In 2x scaled coordinates
+    if (visibleHeight <= 0 || visibleHeight > height) {
+        visibleHeight = height;
+    }
+
+    int centerX = width / 2;
+    int centerY = visibleHeight / 2;
+    int maxDistSq = centerX * centerX + centerY * centerY;
+    if (maxDistSq <= 0) maxDistSq = 1;
+
+    for (int y = 0; y < visibleHeight; ++y) {
+        Uint32* row = buffer + y * width;
+        int dy = y - centerY;
+        int dySq = dy * dy;
+
+        for (int x = 0; x < width; ++x) {
+            Uint32 pixel = row[x];
+            int r = (pixel >> 16) & 0xFF;
+            int g = (pixel >> 8) & 0xFF;
+            int b = pixel & 0xFF;
+
+            // 1. Emissive Glow / Bloom boost for radioactive greens, plasma, and bright fire
+            if (g > 150 && g > r * 1.4f && g > b * 1.4f) {
+                // Radioactive slime / plasma / Pip-Boy green
+                g = std::min(255, g + 28);
+                r = std::min(255, r + 10);
+            } else if (r > 180 && g > 90 && b < 70) {
+                // Fire / torch / explosion warm glow
+                r = std::min(255, r + 24);
+                g = std::min(255, g + 12);
+            }
+
+            // 2. Day / Night & Cave Color Grading
+            if (isNightOrCave) {
+                // Cool moonlight / subterranean shadow tint on darker/mid tones
+                if (r < 140 && g < 140) {
+                    r = (r * 90) / 100;
+                    g = (g * 96) / 100;
+                    b = std::min(255, (b * 114) / 100 + 4);
+                }
+            } else {
+                // Warm sun-baked wasteland golden tint
+                r = std::min(255, (r * 105) / 100);
+                g = std::min(255, (g * 102) / 100);
+                b = (b * 94) / 100;
+            }
+
+            // 3. Subtle atmospheric vignette around playfield edges
+            int dx = x - centerX;
+            int distSq = dx * dx + dySq;
+            if (distSq > (maxDistSq * 45) / 100) {
+                int excess = distSq - (maxDistSq * 45) / 100;
+                int maxExcess = (maxDistSq * 55) / 100;
+                int darken = (excess * (isNightOrCave ? 32 : 20)) / maxExcess;
+                if (darken > 36) darken = 36;
+                r = (r * (256 - darken)) >> 8;
+                g = (g * (256 - darken)) >> 8;
+                b = (b * (256 - darken)) >> 8;
+            }
+
+            row[x] = (pixel & 0xFF000000) | (r << 16) | (g << 8) | b;
+        }
+    }
 }
 
 static bool createRenderer(int width, int height)
@@ -521,7 +593,8 @@ void handleWindowSizeChanged()
 
 void renderPresent()
 {
-    if (gUpscaleFilterMode == UPSCALE_FILTER_SCALE2X && gScale2xTexture != nullptr && gSdlTextureSurface != nullptr) {
+    if ((gUpscaleFilterMode == UPSCALE_FILTER_SCALE2X || gUpscaleFilterMode == UPSCALE_FILTER_MODERN_ATMOSPHERE)
+        && gScale2xTexture != nullptr && gSdlTextureSurface != nullptr) {
         int w = screenGetWidth();
         int h = screenGetHeight();
         scale2x(
@@ -529,6 +602,9 @@ void renderPresent()
             w, h, gSdlTextureSurface->pitch / sizeof(Uint32),
             gScale2xBuffer.data(), w * 2
         );
+        if (gUpscaleFilterMode == UPSCALE_FILTER_MODERN_ATMOSPHERE) {
+            applyModernAtmosphere(gScale2xBuffer.data(), w * 2, h * 2);
+        }
         SDL_UpdateTexture(gScale2xTexture, nullptr, gScale2xBuffer.data(), w * 2 * sizeof(Uint32));
         SDL_RenderClear(gSdlRenderer);
         SDL_RenderCopy(gSdlRenderer, gScale2xTexture, nullptr, nullptr);

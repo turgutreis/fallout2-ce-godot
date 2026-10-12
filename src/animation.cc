@@ -3298,8 +3298,12 @@ static unsigned int animationComputeTicksPerFrame(Object* object, int fid)
     }
 
     if (isInCombat()) {
-        if (FID_ANIM_TYPE(fid) == ANIM_WALK) {
-            if (object != gDude || settings.preferences.player_speedup) {
+        int animType = FID_ANIM_TYPE(fid);
+        if (animType == ANIM_WALK || animType == ANIM_RUNNING) {
+            if (object != gDude) {
+                // Turbo AI Turn: minimum +15 FPS speedup for enemy/ally combat movement
+                fps += std::max(15, settings.preferences.combat_speed);
+            } else if (settings.preferences.player_speedup) {
                 fps += settings.preferences.combat_speed;
             }
         }

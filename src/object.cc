@@ -25,6 +25,7 @@
 #include "proto_instance.h"
 #include "scripts.h"
 #include "settings.h"
+#include "stat.h"
 #include "svga.h"
 #include "text_object.h"
 #include "tile.h"
@@ -874,6 +875,82 @@ void _obj_render_post_roof(Rect* rect, int elevation)
 
     for (int index = 0; index < _outlineCount; index++) {
         objectDrawOutline(_outlinedObjects[index], &updatedRect);
+    }
+
+    // Modern Tactical HUD: Draw health bars over living critters during combat (or when outlined)
+    if (isInCombat() || _outlineCount > 0) {
+        int minX = updatedRect.left - 120;
+        int minY = updatedRect.top - 120;
+        int maxX = updatedRect.right + 120;
+        int maxY = updatedRect.bottom + 120;
+        int upperLeftTile = tileFromScreenXY(minX, minY, elevation, true);
+        int updateAreaHexWidth = (maxX - minX + 1) / 32;
+        int updateAreaHexHeight = (maxY - minY + 1) / 12;
+        int parity = gCenterTile & 1;
+
+        for (int i = 0; i < gObjectsUpdateAreaHexSize; i++) {
+            int offsetIndex = _orderTable[parity][i];
+            if (updateAreaHexHeight > _offsetDivTable[offsetIndex] && updateAreaHexWidth > _offsetModTable[offsetIndex]) {
+                int tile = upperLeftTile + _offsetTable[parity][offsetIndex];
+                if (!hexGridTileIsValid(tile)) {
+                    continue;
+                }
+                ObjectListNode* node = gObjectListHeadByTile[tile];
+                while (node != nullptr) {
+                    Object* obj = node->obj;
+                    if (obj != nullptr && obj->elevation == elevation && (obj->flags & OBJECT_HIDDEN) == 0 && FID_TYPE(obj->fid) == OBJ_TYPE_CRITTER) {
+                        bool showBar = isInCombat() || ((obj->outline & OUTLINE_TYPE_MASK) != 0 && (obj->outline & OUTLINE_DISABLED) == 0);
+                        if (showBar && (obj->data.critter.combat.results & DAM_DEAD) == 0) {
+                            int curHp = critterGetHitPoints(obj);
+                            int maxHp = critterGetStat(obj, STAT_MAXIMUM_HIT_POINTS);
+                            if (curHp > 0 && maxHp > 0) {
+                                int screenX, screenY;
+                                tileToScreenXY(obj->tile, &screenX, &screenY, obj->elevation);
+                                int centerX = screenX + 16 + obj->x;
+                                int barY = screenY - 62 + obj->y;
+                                const int barWidth = 28;
+                                const int barHeight = 4;
+                                int barX = centerX - barWidth / 2;
+
+                                Rect barRect = { barX - 1, barY - 1, barX + barWidth, barY + barHeight };
+                                Rect clipBar;
+                                if (rectIntersection(&barRect, &updatedRect, &clipBar) == 0) {
+                                    unsigned char borderColor = _colorTable[0];
+                                    unsigned char bgColor = _colorTable[4228];
+                                    unsigned char fillColor;
+                                    int pct = (curHp * 100) / maxHp;
+                                    if (pct > 60) {
+                                        fillColor = _colorTable[992]; // Bright Green
+                                    } else if (pct > 25) {
+                                        fillColor = _colorTable[32747]; // Yellow
+                                    } else {
+                                        fillColor = _colorTable[31744]; // Red
+                                    }
+
+                                    int fillWidth = (curHp * barWidth) / maxHp;
+                                    if (fillWidth < 1) fillWidth = 1;
+                                    if (fillWidth > barWidth) fillWidth = barWidth;
+
+                                    for (int py = clipBar.top; py <= clipBar.bottom; py++) {
+                                        unsigned char* row = gObjectsWindowBuffer + py * gObjectsWindowPitch;
+                                        for (int px = clipBar.left; px <= clipBar.right; px++) {
+                                            if (py == barRect.top || py == barRect.bottom || px == barRect.left || px == barRect.right) {
+                                                row[px] = borderColor;
+                                            } else if (px - barX < fillWidth) {
+                                                row[px] = fillColor;
+                                            } else {
+                                                row[px] = bgColor;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    node = node->next;
+                }
+            }
+        }
     }
 
     textObjectsRenderInRect(&updatedRect);
