@@ -846,6 +846,61 @@ void _obj_render_pre_roof(Rect* rect, int elevation)
 
             if (elevation == objectListNode->obj->elevation) {
                 if ((objectListNode->obj->flags & OBJECT_HIDDEN) == 0) {
+                    if (object->tile != -1) {
+                        int objType = FID_TYPE(object->fid);
+                        if (objType == OBJ_TYPE_CRITTER && (object->data.critter.combat.results & DAM_DEAD) == 0) {
+                            int sx, sy;
+                            tileToScreenXY(object->tile, &sx, &sy, object->elevation);
+                            sx += 16 + object->x;
+                            sy += 6 + object->y;
+                            const int rx = 14;
+                            const int ry = 6;
+                            Rect shadowRect = { sx - rx, sy - ry, sx + rx, sy + ry };
+                            Rect clipShadow;
+                            if (rectIntersection(&shadowRect, &updatedRect, &clipShadow) == 0) {
+                                for (int py = clipShadow.top; py <= clipShadow.bottom; py++) {
+                                    unsigned char* row = gObjectsWindowBuffer + py * gObjectsWindowPitch;
+                                    int dy = py - sy;
+                                    int dyTerm = (dy * dy * 100) / (ry * ry);
+                                    for (int px = clipShadow.left; px <= clipShadow.right; px++) {
+                                        int dx = px - sx;
+                                        int distNorm = (dx * dx * 100) / (rx * rx) + dyTerm;
+                                        if (distNorm <= 55) {
+                                            row[px] = intensityColorTable[row[px]][72];
+                                        } else if (distNorm <= 100) {
+                                            row[px] = intensityColorTable[row[px]][98];
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (object->lightIntensity > 16384 && object->lightDistance > 0 && objType != OBJ_TYPE_CRITTER) {
+                            int sx, sy;
+                            tileToScreenXY(object->tile, &sx, &sy, object->elevation);
+                            sx += 16 + object->x;
+                            sy += 6 + object->y;
+                            const int rx = 24;
+                            const int ry = 11;
+                            Rect glowRect = { sx - rx, sy - ry, sx + rx, sy + ry };
+                            Rect clipGlow;
+                            if (rectIntersection(&glowRect, &updatedRect, &clipGlow) == 0) {
+                                for (int py = clipGlow.top; py <= clipGlow.bottom; py++) {
+                                    unsigned char* row = gObjectsWindowBuffer + py * gObjectsWindowPitch;
+                                    int dy = py - sy;
+                                    int dyTerm = (dy * dy * 100) / (ry * ry);
+                                    for (int px = clipGlow.left; px <= clipGlow.right; px++) {
+                                        int dx = px - sx;
+                                        int distNorm = (dx * dx * 100) / (rx * rx) + dyTerm;
+                                        if (distNorm <= 50) {
+                                            row[px] = intensityColorTable[row[px]][152];
+                                        } else if (distNorm <= 100) {
+                                            row[px] = intensityColorTable[row[px]][136];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     _obj_render_object(object, &updatedRect, lightIntensity);
 
                     if ((objectListNode->obj->outline & OUTLINE_TYPE_MASK) != 0) {

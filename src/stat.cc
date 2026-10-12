@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "art.h"
+#include "color.h"
 #include "combat.h"
 #include "critter.h"
 #include "display_monitor.h"
@@ -23,6 +24,7 @@
 #include "scripts.h"
 #include "skill.h"
 #include "svga.h"
+#include "text_object.h"
 #include "tile.h"
 #include "trait.h"
 
@@ -791,8 +793,18 @@ int pcAddExperienceWithOptions(int xp, bool a2, int* xpGained)
         }
     }
 
+    int gained = newXp - oldXp;
     if (xpGained != nullptr) {
-        *xpGained = newXp - oldXp;
+        *xpGained = gained;
+    }
+
+    if (gained > 0 && gDude != nullptr && gDude->tile != -1) {
+        char xpMsg[32];
+        snprintf(xpMsg, sizeof(xpMsg), "+%d XP", gained);
+        Rect xpRect;
+        if (textObjectAdd(gDude, xpMsg, 101, _colorTable[32747], _colorTable[0], &xpRect) == 0) {
+            tileWindowRefreshRect(&xpRect, gDude->elevation);
+        }
     }
 
     return 0;

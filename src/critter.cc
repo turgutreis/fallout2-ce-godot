@@ -6,6 +6,7 @@
 #include "animation.h"
 #include "art.h"
 #include "character_editor.h"
+#include "color.h"
 #include "combat.h"
 #include "debug.h"
 #include "display_monitor.h"
@@ -27,6 +28,7 @@
 #include "scripts.h"
 #include "skill.h"
 #include "stat.h"
+#include "text_object.h"
 #include "tile.h"
 #include "trait.h"
 #include "worldmap.h"
@@ -295,8 +297,9 @@ int critterAdjustHitPoints(Object* critter, int hp)
         return 0;
     }
 
+    int oldHp = critter->data.critter.hp;
     int maximumHp = critterGetStat(critter, STAT_MAXIMUM_HIT_POINTS);
-    int newHp = critter->data.critter.hp + hp;
+    int newHp = oldHp + hp;
 
     critter->data.critter.hp = newHp;
     if (maximumHp >= newHp) {
@@ -305,6 +308,16 @@ int critterAdjustHitPoints(Object* critter, int hp)
         }
     } else {
         critter->data.critter.hp = maximumHp;
+    }
+
+    int actualHeal = critter->data.critter.hp - oldHp;
+    if (actualHeal > 0 && hp < 500 && critter->tile != -1 && !GameMode::isInGameMode(GameMode::kEditor)) {
+        char healMsg[32];
+        snprintf(healMsg, sizeof(healMsg), "+%d HP", actualHeal);
+        Rect healRect;
+        if (textObjectAdd(critter, healMsg, 101, _colorTable[992], _colorTable[0], &healRect) == 0) {
+            tileWindowRefreshRect(&healRect, critter->elevation);
+        }
     }
 
     return 0;

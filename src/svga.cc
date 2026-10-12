@@ -591,8 +591,36 @@ void handleWindowSizeChanged()
     createRenderer(screenGetWidth(), screenGetHeight());
 }
 
+static Uint32 gScreenShakeEndTick = 0;
+static int gScreenShakeMagnitude = 0;
+
+void triggerScreenShake(int magnitude, unsigned int durationMs)
+{
+    Uint32 now = SDL_GetTicks();
+    gScreenShakeEndTick = now + durationMs;
+    gScreenShakeMagnitude = magnitude;
+}
+
 void renderPresent()
 {
+    SDL_Rect dstRect;
+    SDL_Rect* dstRectPtr = nullptr;
+    Uint32 now = SDL_GetTicks();
+    if (now < gScreenShakeEndTick && gScreenShakeMagnitude > 0) {
+        int remaining = (int)(gScreenShakeEndTick - now);
+        int mag = (gScreenShakeMagnitude * remaining) / 180;
+        if (mag < 1) mag = 1;
+        if (mag > gScreenShakeMagnitude) mag = gScreenShakeMagnitude;
+        int phase = (now / 16) % 4;
+        int dx = (phase == 0 || phase == 3) ? mag : -mag;
+        int dy = (phase == 0 || phase == 1) ? (mag / 2 + 1) : -(mag / 2 + 1);
+        dstRect.x = dx;
+        dstRect.y = dy;
+        dstRect.w = screenGetWidth();
+        dstRect.h = screenGetHeight();
+        dstRectPtr = &dstRect;
+    }
+
     if ((gUpscaleFilterMode == UPSCALE_FILTER_SCALE2X || gUpscaleFilterMode == UPSCALE_FILTER_MODERN_ATMOSPHERE)
         && gScale2xTexture != nullptr && gSdlTextureSurface != nullptr) {
         int w = screenGetWidth();
@@ -607,11 +635,11 @@ void renderPresent()
         }
         SDL_UpdateTexture(gScale2xTexture, nullptr, gScale2xBuffer.data(), w * 2 * sizeof(Uint32));
         SDL_RenderClear(gSdlRenderer);
-        SDL_RenderCopy(gSdlRenderer, gScale2xTexture, nullptr, nullptr);
+        SDL_RenderCopy(gSdlRenderer, gScale2xTexture, nullptr, dstRectPtr);
     } else {
         SDL_UpdateTexture(gSdlTexture, nullptr, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
         SDL_RenderClear(gSdlRenderer);
-        SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, nullptr);
+        SDL_RenderCopy(gSdlRenderer, gSdlTexture, nullptr, dstRectPtr);
     }
     SDL_RenderPresent(gSdlRenderer);
 }

@@ -5129,8 +5129,12 @@ void _combat_display(Attack* attack)
                 if ((attack->attackerFlags & DAM_CRITICAL) != 0) {
                     snprintf(floatMsg, sizeof(floatMsg), "KRIT! -%d", attack->defenderDamage);
                     floatColor = _colorTable[32747]; // Bright Yellow
+                    triggerScreenShake(5, 220);
                 } else if (attack->defenderDamage > 0) {
                     snprintf(floatMsg, sizeof(floatMsg), "-%d", attack->defenderDamage);
+                    if (attack->defenderDamage >= 15 || (attack->defenderFlags & (DAM_KNOCKED_DOWN | DAM_KNOCKED_OUT | DAM_DEAD)) != 0 || attack->extrasLength > 0) {
+                        triggerScreenShake(4, 160);
+                    }
                 } else {
                     snprintf(floatMsg, sizeof(floatMsg), "0");
                     floatColor = _colorTable[21140]; // Gray

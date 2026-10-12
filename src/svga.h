@@ -57,6 +57,7 @@ enum UpscaleFilterMode {
 void setUpscaleFilterMode(int mode);
 int getUpscaleFilterMode();
 void cycleUpscaleFilterMode();
+void triggerScreenShake(int magnitude, unsigned int durationMs);
 
 } // namespace fallout
 

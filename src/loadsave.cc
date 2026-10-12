@@ -345,6 +345,9 @@ void _InitLoadSave()
     MapDirErase(PROTO_DIR_NAME "\\" ITEMS_DIR_NAME "\\", PROTO_FILE_EXT);
 
     configGetInt(&gSfallConfig, SFALL_CONFIG_MISC_KEY, SFALL_CONFIG_AUTO_QUICK_SAVE, &quickSaveSlots);
+    if (quickSaveSlots <= 0) {
+        quickSaveSlots = 1;
+    }
     if (quickSaveSlots > 0 && quickSaveSlots <= 10) {
         autoQuickSaveSlots = true;
     }
@@ -388,6 +391,10 @@ int lsgSaveGame(int mode)
         if (_flptr != nullptr) {
             lsgLoadHeaderInSlot(_slot_cursor);
             fileClose(_flptr);
+        }
+        if (_LSData[_slot_cursor].description[0] == '\0') {
+            strncpy(_LSData[_slot_cursor].description, "QUICKSAVE", sizeof(_LSData[_slot_cursor].description) - 1);
+            _LSData[_slot_cursor].description[sizeof(_LSData[_slot_cursor].description) - 1] = '\0';
         }
 
         if (!messageListInit(&gLoadSaveMessageList)) {
@@ -889,6 +896,15 @@ int lsgLoadGame(int mode)
 
     _ls_error_code = 0;
     _patches = settings.system.master_patches_path.c_str();
+
+    if (mode == LOAD_SAVE_MODE_QUICK && autoQuickSaveSlots && !_quick_done) {
+        snprintf(_gmpath, sizeof(_gmpath), "%s\\%s%.2d\\%s", "SAVEGAME", "SLOT", _slot_cursor + 1, "SAVE.DAT");
+        File* testFile = fileOpen(_gmpath, "rb");
+        if (testFile != nullptr) {
+            fileClose(testFile);
+            _quick_done = true;
+        }
+    }
 
     if (mode == LOAD_SAVE_MODE_QUICK && _quick_done) {
         int quickSaveWindowX = (screenGetWidth() - LS_WINDOW_WIDTH) / 2;

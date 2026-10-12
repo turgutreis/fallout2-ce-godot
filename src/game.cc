@@ -61,6 +61,7 @@
 #include "stat.h"
 #include "svga.h"
 #include "text_font.h"
+#include "text_object.h"
 #include "tile.h"
 #include "trait.h"
 #include "version.h"
@@ -904,6 +905,13 @@ int gameHandleKey(int eventCode, bool isInCombatMode)
                 // Quick save game successfully saved.
                 char* msg = getmsg(&gMiscMessageList, &messageListItem, 5);
                 displayMonitorAddMessage(msg);
+
+                if (gDude != nullptr && gDude->tile != -1) {
+                    Rect floatRect;
+                    if (textObjectAdd(gDude, "GESPEICHERT", 101, _colorTable[992], _colorTable[0], &floatRect) == 0) {
+                        tileWindowRefreshRect(&floatRect, gDude->elevation);
+                    }
+                }
             }
         }
         break;
@@ -919,6 +927,13 @@ int gameHandleKey(int eventCode, bool isInCombatMode)
                 // Quick load game successfully loaded.
                 char* msg = getmsg(&gMiscMessageList, &messageListItem, 4);
                 displayMonitorAddMessage(msg);
+
+                if (gDude != nullptr && gDude->tile != -1) {
+                    Rect floatRect;
+                    if (textObjectAdd(gDude, "GELADEN", 101, _colorTable[32747], _colorTable[0], &floatRect) == 0) {
+                        tileWindowRefreshRect(&floatRect, gDude->elevation);
+                    }
+                }
             }
         }
         break;
